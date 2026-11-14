@@ -1,0 +1,25 @@
+# Secrets & local config
+.env
+.env.*
+!.env.example
+
+# Node / web
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# Haskell
+dist-newstyle/
+.stack-work/
+*.hi
+*.o
+
+# Local data & OS
+*.sqlite
+pgdata/
+.DS_Store
+Thumbs.db
+.claude/

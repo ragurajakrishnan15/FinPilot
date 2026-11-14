@@ -1,0 +1,68 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finpilot
+          POSTGRES_PASSWORD: finpilot
+          POSTGRES_DB: finpilot_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U finpilot" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://finpilot:finpilot@localhost:5432/finpilot_test
+      PGPASSWORD: finpilot
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev postgresql-client
+      - name: Apply migrations and seed
+        run: |
+          for f in database/migrations/*.sql database/seed/*.sql; do
+            psql -h localhost -U finpilot -d finpilot_test -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10'
+          cabal-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/store
+            apps/api/dist-newstyle
+          key: cabal-${{ runner.os }}-${{ hashFiles('apps/api/*.cabal') }}
+          restore-keys: cabal-${{ runner.os }}-
+      - run: cabal update
+        working-directory: apps/api
+      - run: cabal build all --enable-tests
+        working-directory: apps/api
+      - run: cabal test all --enable-tests --test-show-details=direct
+        working-directory: apps/api

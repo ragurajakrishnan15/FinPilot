@@ -1,0 +1,92 @@
+cabal-version:      3.0
+name:               finpilot-api
+version:            0.1.0.0
+synopsis:           FinPilot backend (Servant) — synthetic data, simulated payments
+build-type:         Simple
+
+common shared
+  default-language:   GHC2021
+  default-extensions:
+    OverloadedStrings
+    DerivingStrategies
+    DuplicateRecordFields
+    OverloadedRecordDot
+    LambdaCase
+    DataKinds
+    TypeFamilies
+    TypeOperators
+  ghc-options:        -Wall -Wno-name-shadowing -Wno-orphans
+  build-depends:
+    , aeson               >=2.1
+    , base                >=4.18 && <5
+    , base64-bytestring   >=1.2
+    , bytestring
+    , containers
+    , crypton
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-types
+    , mtl
+    , ram
+    , postgresql-simple   >=0.7
+    , resource-pool       >=0.4
+    , scientific
+    , servant             >=0.20
+    , servant-server      >=0.20
+    , text
+    , time
+    , uuid
+    , vector
+    , wai
+    , wai-cors
+    , wai-extra
+    , warp
+
+library
+  import:           shared
+  hs-source-dirs:   src
+  exposed-modules:
+    FinPilot.AI.AgentLoop
+    FinPilot.AI.GroqClient
+    FinPilot.AI.PromptBuilder
+    FinPilot.AI.ToolDefinitions
+    FinPilot.AI.ToolDispatcher
+    FinPilot.App
+    FinPilot.Api
+    FinPilot.Auth.Jwt
+    FinPilot.Config
+    FinPilot.Database.Payments
+    FinPilot.Database.Queries
+    FinPilot.Domain.Finance
+    FinPilot.Domain.Validation
+    FinPilot.Error
+    FinPilot.Handlers
+    FinPilot.Types
+
+executable finpilot-api
+  import:           shared
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:    finpilot-api
+  ghc-options:      -threaded -rtsopts "-with-rtsopts=-N"
+
+test-suite finpilot-api-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Spec.hs
+  other-modules:
+    FinPilot.AISpec
+    FinPilot.FinanceSpec
+    FinPilot.IntegrationSpec
+    FinPilot.JwtSpec
+    FinPilot.PaymentSpec
+    FinPilot.TestUtil
+    FinPilot.ValidationSpec
+  ghc-options:      -threaded -rtsopts "-with-rtsopts=-N4"
+  build-tool-depends: hspec-discover:hspec-discover
+  build-depends:
+    , finpilot-api
+    , hspec       >=2.10
+    , QuickCheck

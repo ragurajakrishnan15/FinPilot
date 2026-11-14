@@ -1,0 +1,31 @@
+# Render blueprint for the Haskell API (Docker). Secrets are set in the Render dashboard, never committed.
+services:
+  - type: web
+    name: finpilot-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEMO_MODE
+        value: 'true' # public portfolio demo only; synthetic data. Set false if real users ever exist.
+      - key: DATABASE_URL
+        sync: false # Supabase/Render Postgres connection string
+      - key: JWT_SECRET
+        sync: false # 32+ random chars (or your Supabase JWT secret)
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false # the deployed Vercel origin, e.g. https://finpilot.vercel.app
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        sync: false # confirm the current model in the Groq console
+      - key: GROQ_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: GROQ_TIMEOUT_SECONDS
+        value: '30'
+      - key: MAX_TOOL_CALLS_PER_TURN
+        value: '5'
+      - key: MAX_COMMAND_INPUT_CHARS
+        value: '4000'

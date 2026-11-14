@@ -4,9 +4,10 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './tests',
   timeout: 30_000,
-  retries: 0,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
   workers: 1, // tests share one seeded database
-  reporter: [['list']],
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: { baseURL: 'http://localhost:5173', trace: 'retain-on-failure' },
   webServer: {
     command: 'npm run dev -- --port 5173',

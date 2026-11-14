@@ -66,3 +66,94 @@ jobs:
         working-directory: apps/api
       - run: cabal test all --enable-tests --test-show-details=direct
         working-directory: apps/api
+
+  # Full-stack browser tests: real UI -> real Haskell API -> real PostgreSQL (desktop + mobile viewports).
+  # The Groq key is deliberately NOT provided: the AI path is covered by the Hspec suite with a scripted model.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finpilot
+          POSTGRES_PASSWORD: finpilot
+          POSTGRES_DB: finpilot
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U finpilot" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      PGPASSWORD: finpilot
+      DATABASE_URL: postgresql://finpilot:finpilot@localhost:5432/finpilot
+      APP_ENV: development
+      DEMO_MODE: 'true'
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      PORT: '8080'
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev postgresql-client
+      - name: Apply migrations and seed
+        run: |
+          for f in database/migrations/*.sql database/seed/*.sql; do
+            psql -h localhost -U finpilot -d finpilot -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10'
+          cabal-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/store
+            apps/api/dist-newstyle
+          key: cabal-${{ runner.os }}-${{ hashFiles('apps/api/*.cabal') }}
+          restore-keys: cabal-${{ runner.os }}-
+      - name: Build the API
+        working-directory: apps/api
+        run: |
+          cabal update
+          cabal build exe:finpilot-api
+      - name: Start the API
+        working-directory: apps/api
+        run: |
+          # A random per-run secret; nothing here is a real credential.
+          JWT_SECRET="$(openssl rand -hex 32)"
+          export JWT_SECRET
+          nohup "$(cabal list-bin finpilot-api)" > "$RUNNER_TEMP/api.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:8080/health && exit 0
+            sleep 2
+          done
+          echo "API did not become healthy"; cat "$RUNNER_TEMP/api.log"; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            e2e/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm ci
+        working-directory: e2e
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: Run Playwright tests
+        run: npx playwright test
+        working-directory: e2e
+      - name: Upload report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            e2e/screens
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: API log on failure
+        if: failure()
+        run: tail -n 100 "$RUNNER_TEMP/api.log" || true

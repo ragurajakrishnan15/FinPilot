@@ -4,6 +4,7 @@ services:
   - type: web
     name: finpilot-api
     runtime: image
+    plan: free # explicit: a Blueprint without a plan defaults to a paid instance type
     image:
       url: ghcr.io/ragurajakrishnan15/finpilot-api:latest # the package must be public for Render to pull it without credentials
     healthCheckPath: /health

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 
 // Automated accessibility audit (WCAG 2.0/2.1 A + AA rules) on every route, in both themes.
 // Automated checks catch roughly a third of issues; they do not replace manual keyboard and screen-reader testing.
-const routes = ['/', '/command', '/transactions', '/vendors', '/invoices', '/payments', '/activity', '/settings']
+const routes = ['/', '/command', '/accounts', '/transactions', '/vendors', '/invoices', '/payments', '/activity', '/settings', '/no-such-page']
 
 for (const theme of ['light', 'dark'] as const) {
   test(`no serious or critical accessibility violations (${theme})`, async ({ page }) => {

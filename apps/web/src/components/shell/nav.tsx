@@ -3,6 +3,7 @@ import {
   Banknote,
   Building2,
   FileText,
+  Landmark,
   LayoutGrid,
   MessageSquare,
   ScrollText,
@@ -34,6 +35,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Money',
     items: [
+      { to: '/accounts', label: 'Accounts', icon: Landmark },
       { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
       { to: '/vendors', label: 'Vendors', icon: Building2 },
       { to: '/invoices', label: 'Invoices', icon: FileText },

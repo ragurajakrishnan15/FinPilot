@@ -22,6 +22,7 @@ describe('routes render with mock data', () => {
   it.each([
     ['/', 'November 2026'], // the dashboard is titled by the period it covers
     ['/command', 'Command Center'],
+    ['/accounts', 'Accounts'],
     ['/transactions', 'Transactions'],
     ['/vendors', 'Vendors'],
     ['/invoices', 'Invoices'],
@@ -92,5 +93,42 @@ describe('command palette', () => {
     expect(within(dialog).getByText(/Compare AWS expenses/)).toBeInTheDocument()
     await userEvent.click(within(dialog).getByText('Payments'))
     expect(await screen.findByRole('heading', { level: 1, name: 'Payments' })).toBeInTheDocument()
+  })
+})
+
+describe('error and empty routes', () => {
+  it('shows a designed 404 with a way back', async () => {
+    renderAt('/no-such-page')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to the dashboard' })).toHaveAttribute('href', '/')
+  })
+})
+
+describe('accounts', () => {
+  it('lists accounts and offers Pay from here only for non-credit accounts', async () => {
+    renderAt('/accounts')
+    expect(await screen.findByText('Operating Account')).toBeInTheDocument()
+    expect(screen.getByText('Corporate Card')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Pay from here' })).toHaveLength(2) // checking + savings, not the card
+  })
+})
+
+describe('pay this invoice', () => {
+  it('opens Payments with a draft pre-filled from an unpaid invoice, without creating anything', async () => {
+    renderAt('/invoices')
+    await userEvent.click(await screen.findByRole('button', { name: 'INV-1002' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Prepare payment' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Payments' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount (USD)')).toHaveValue('500.00')
+    expect(screen.getByLabelText(/Memo/)).toHaveValue('Invoice INV-1002')
+    expect(screen.queryByRole('status', { name: 'Payment receipt' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer payment for a paid invoice', async () => {
+    renderAt('/invoices')
+    await userEvent.click(await screen.findByRole('tab', { name: /Paid/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'INV-1005' }))
+    await screen.findByText('Invoice ID')
+    expect(screen.queryByRole('button', { name: 'Prepare payment' })).not.toBeInTheDocument()
   })
 })

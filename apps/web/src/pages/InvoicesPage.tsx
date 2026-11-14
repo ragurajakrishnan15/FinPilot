@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Amount } from '@/components/Amount'
 import { PageHeader } from '@/components/PageHeader'
@@ -148,6 +148,7 @@ function NewInvoiceSheet({
 }
 
 function InvoiceSheet({ invoice, onClose }: { invoice: Invoice | undefined; onClose: () => void }) {
+  const navigate = useNavigate()
   return (
     <Sheet open={invoice !== undefined} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full gap-0 sm:max-w-md">
@@ -191,6 +192,21 @@ function InvoiceSheet({ invoice, onClose }: { invoice: Invoice | undefined; onCl
                 </div>
               ))}
             </dl>
+            {invoice.status === 'unpaid' || invoice.status === 'overdue' ? (
+              <SheetFooter className="mt-auto p-6">
+                <Button
+                  onClick={() => {
+                    // Opens Payments with a draft pre-filled for this invoice. Nothing is created or paid here.
+                    void navigate('/payments', {
+                      state: { vendorId: invoice.vendor_id, amountMinor: invoice.amount_minor, memo: `Invoice ${invoice.number}` },
+                    })
+                  }}
+                >
+                  Prepare payment
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">Opens a pre-filled draft. You confirm it separately.</p>
+              </SheetFooter>
+            ) : null}
           </>
         ) : null}
       </SheetContent>

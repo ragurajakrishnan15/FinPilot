@@ -3,7 +3,7 @@
 | Phase | State | Evidence (actually run) |
 |---|---|---|
 | 0 — Repository foundation | Done | `.gitignore`, `.env.example`, compose, CI workflow, README. CI has **not** run on GitHub (no remote). |
-| 1 — Frontend shell | Rebuilt on real shadcn/ui with a defined design direction ([design.md](design.md)) | Vitest 26/26, typecheck, lint, Prettier, build; Playwright 30 passed (desktop + mobile); axe-core audit clean in light and dark; every page reviewed in screenshots |
+| 1 — Frontend shell | Rebuilt on real shadcn/ui with a defined design direction ([design.md](design.md)) | Vitest 34/34, typecheck, lint, Prettier, build; Playwright 36 passed (desktop + mobile); axe-core audit clean in light and dark on every route including 404. Added: Accounts view, "Prepare payment" from an unpaid invoice (prefill only), error boundary and designed 404 |
 | 2 — Database + Haskell API | Done | migrations + seed applied to PostgreSQL 16; Hspec integration tests incl. cross-workspace isolation |
 | 3 — Groq + tool calling | Code + tests done; **not verified against live Groq** | scripted-LLM tests (allowlist, validation, budget, injection, rate limit). Needs `GROQ_API_KEY` + `GROQ_MODEL` |
 | 4 — Simulated payments | Done | PaymentSpec incl. concurrent confirmations; Playwright draft→confirm/cancel |

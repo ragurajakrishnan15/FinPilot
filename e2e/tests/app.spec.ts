@@ -20,7 +20,7 @@ test('shows the synthetic/simulated notice on every page', async ({ page }) => {
   await expect(note).toContainText('simulated')
 })
 
-test('dashboard shows database-backed figures and charts', async ({ page }, info) => {
+test('dashboard shows database-backed figures and charts', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText(/\d{4}$/) // titled by its period, e.g. "November 2026"
@@ -31,8 +31,6 @@ test('dashboard shows database-backed figures and charts', async ({ page }, info
   // The amount column must never be clipped, even on a phone.
   const box = await page.getByRole('row').nth(1).getByRole('cell').last().boundingBox()
   expect(box && box.x + box.width <= (page.viewportSize()?.width ?? 0) + 1, 'amount column visible').toBeTruthy()
-  await page.waitForTimeout(400)
-  await page.screenshot({ path: `screens/dashboard-${info.project.name}.png`, fullPage: true })
 })
 
 test('chart has an accessible table view', async ({ page }) => {
@@ -42,7 +40,7 @@ test('chart has an accessible table view', async ({ page }) => {
 })
 
 test('no horizontal overflow on any route (responsive gate)', async ({ page }) => {
-  for (const path of ['/', '/command', '/transactions', '/vendors', '/invoices', '/payments', '/activity', '/settings']) {
+  for (const path of ['/', '/command', '/accounts', '/transactions', '/vendors', '/invoices', '/payments', '/activity', '/settings', '/no-such-page']) {
     await page.goto(path)
     await page.getByRole('heading', { level: 1 }).waitFor()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
@@ -162,6 +160,37 @@ test('payments: a draft never executes; review then confirm gives a SIMULATED re
   const d2 = page.getByRole('listitem').filter({ hasText: '$88.88' }).first()
   await d2.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('listitem').filter({ hasText: '$88.88' }).first()).toContainText('Cancelled')
+})
+
+test('accounts lists balances; Pay from here prefills the account', async ({ page }) => {
+  await page.goto('/accounts')
+  await expect(page.getByRole('heading', { level: 1, name: 'Accounts' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Corporate Card' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Pay from here' })).toHaveCount(2) // never from the credit card
+  await page.getByRole('row', { name: /Reserve Savings/ }).getByRole('link', { name: 'Pay from here' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Payments' })).toBeVisible()
+  await expect(page.getByLabel('Pay from', { exact: true })).toContainText('Reserve Savings')
+})
+
+test('pay this invoice: pre-fills a draft but creates and pays nothing', async ({ page, request }) => {
+  const token = (await (await request.post(`${API}/api/demo-session`)).json()).token as string
+  const before = (await (await request.get(`${API}/api/payment-drafts`, { headers: { Authorization: `Bearer ${token}` } })).json()).length
+  await page.goto('/invoices')
+  await page.getByRole('tab', { name: /Unpaid/ }).click()
+  await page.getByRole('button', { name: /^INV-/ }).first().click()
+  await page.getByRole('button', { name: 'Prepare payment' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Payments' })).toBeVisible()
+  await expect(page.getByLabel('Memo')).toHaveValue(/^Invoice INV-/)
+  await expect(page.getByLabel('Amount (USD)')).not.toHaveValue('')
+  const after = (await (await request.get(`${API}/api/payment-drafts`, { headers: { Authorization: `Bearer ${token}` } })).json()).length
+  expect(after, 'prefill must not create a draft').toBe(before)
+})
+
+test('unknown routes show a designed 404', async ({ page }) => {
+  await page.goto('/definitely-not-a-page')
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible()
+  await page.getByRole('link', { name: 'Go to the dashboard' }).click()
+  await expect(page.getByText('Total balance')).toBeVisible()
 })
 
 test('payments: insufficient funds is rejected by the server', async ({ page }) => {

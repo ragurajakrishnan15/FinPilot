@@ -11,6 +11,12 @@ export function formatMoney(minor: Cents, currency = 'USD'): string {
   return `${sign}${symbol}${whole}.${cents.toString().padStart(2, '0')}`
 }
 
+/** Integer cents -> an editable decimal string for form fields ("50000" -> "500.00"). Exact, no floats. */
+export function centsToDecimal(minor: Cents): string {
+  const abs = Math.abs(minor)
+  return `${minor < 0 ? '-' : ''}${Math.trunc(abs / 100)}.${(abs % 100).toString().padStart(2, '0')}`
+}
+
 /** Parse a user-entered decimal string ("500", "500.5", "1,200.25") into cents. Returns null if invalid. */
 export function parseMoneyToCents(input: string): Cents | null {
   const cleaned = input.replace(/[$,\s]/g, '')

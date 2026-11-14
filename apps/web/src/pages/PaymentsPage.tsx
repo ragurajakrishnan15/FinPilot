@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Amount } from '@/components/Amount'
 import { PageHeader } from '@/components/PageHeader'
@@ -13,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAsync } from '@/hooks/useAsync'
-import { formatDate, parseMoneyToCents } from '@/lib/money'
+import { centsToDecimal, formatDate, parseMoneyToCents } from '@/lib/money'
 import { api } from '@/services/api'
 import type { Payment, PaymentDraft } from '@/types/api'
 
@@ -61,10 +62,15 @@ export default function PaymentsPage() {
   const vendors = useAsync(() => api.getVendors())
   const accounts = useAsync(() => api.getAccounts())
 
-  const [vendorId, setVendorId] = useState('')
-  const [accountId, setAccountId] = useState('')
-  const [amount, setAmount] = useState('')
-  const [memo, setMemo] = useState('')
+  // Arriving from an invoice or an account pre-fills the form. The user still reviews it and
+  // confirms separately: a prefill only ever helps create a draft.
+  const prefill = (useLocation().state ?? {}) as { vendorId?: string; amountMinor?: number; memo?: string; accountId?: string }
+  const [vendorId, setVendorId] = useState(prefill.vendorId ?? '')
+  const [pickedAccountId, setAccountId] = useState(prefill.accountId ?? '')
+  const [amount, setAmount] = useState(prefill.amountMinor ? centsToDecimal(prefill.amountMinor) : '')
+  const [memo, setMemo] = useState(prefill.memo ?? '')
+  // Default to the first account a payment can be drawn from; the select shows it, so nothing is hidden.
+  const accountId = pickedAccountId || (accounts.data?.find((a) => a.kind !== 'credit')?.id ?? '')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [creating, setCreating] = useState(false)
   const [reviewing, setReviewing] = useState<PaymentDraft>()

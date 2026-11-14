@@ -13,6 +13,7 @@ import { api } from '@/services/api'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { selectResolvedTheme, setPaletteOpen, setSystemDark } from '@/store/uiSlice'
 import { Annunciator } from './shell/Annunciator'
+import { ErrorBoundary } from './ErrorBoundary'
 import { Logo } from './shell/Logo'
 import { navGroups } from './shell/nav'
 import { ThemeMenu } from './shell/ThemeMenu'
@@ -174,7 +175,9 @@ export default function Layout() {
 
           <main id="main" className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-8 md:py-8">
             <div key={pathname} className="page-enter">
-              <Outlet />
+              <ErrorBoundary>
+                <Outlet />
+              </ErrorBoundary>
             </div>
           </main>
         </div>

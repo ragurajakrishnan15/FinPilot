@@ -13,6 +13,8 @@ const InvoicesPage = lazy(() => import('@/pages/InvoicesPage'))
 const PaymentsPage = lazy(() => import('@/pages/PaymentsPage'))
 const ActivityPage = lazy(() => import('@/pages/ActivityPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const AccountsPage = lazy(() => import('@/pages/AccountsPage'))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 export default function App() {
   return (
@@ -24,11 +26,12 @@ export default function App() {
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="vendors" element={<VendorsPage />} />
           <Route path="vendors/:id" element={<VendorDetailPage />} />
+          <Route path="accounts" element={<AccountsPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="*" element={<p className="py-10 text-center text-sm text-muted">Page not found.</p>} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Suspense>

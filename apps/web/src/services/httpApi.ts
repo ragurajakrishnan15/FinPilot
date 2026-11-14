@@ -3,6 +3,8 @@ import type {
   Account,
   AuditEvent,
   CommandResponse,
+  ConversationMessage,
+  ConversationSummary,
   Dashboard,
   Invoice,
   Me,
@@ -58,6 +60,8 @@ export const httpApi = {
     }),
   cancelPaymentDraft: (id: string) => request<PaymentDraft>(`/api/payment-drafts/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   getAuditEvents: () => request<AuditEvent[]>('/api/audit-events'),
+  getConversations: () => request<ConversationSummary[]>('/api/conversations'),
+  getConversationMessages: (id: string) => request<ConversationMessage[]>(`/api/conversations/${encodeURIComponent(id)}/messages`),
   sendCommand: (message: string, conversationId?: string) =>
     request<CommandResponse>('/api/command', { method: 'POST', body: { message, conversation_id: conversationId } }),
 }

@@ -151,6 +151,20 @@ export interface CommandResponse {
   tool_activity: ToolActivity[]
 }
 
+export interface ConversationSummary {
+  id: string
+  created_at: string
+  preview: string
+}
+
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  ui_blocks: UiBlock[]
+  created_at: string
+}
+
 export interface ApiErrorBody {
   code: string
   message: string

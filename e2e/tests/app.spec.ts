@@ -7,28 +7,38 @@ test.beforeAll(async ({ request }) => {
   expect(res.ok(), 'API must be running on :8080').toBeTruthy()
 })
 
-async function openNav(page: Page, isMobile: boolean) {
-  if (isMobile) await page.getByRole('button', { name: 'Open menu' }).click()
+// Radix selects are not native <select>: open the trigger, then pick the option.
+async function choose(page: Page, label: string, option: string) {
+  await page.getByLabel(label, { exact: true }).click()
+  await page.getByRole('option', { name: option, exact: true }).click()
 }
 
-test('shows the synthetic/simulated banner on every page', async ({ page }) => {
+test('shows the synthetic/simulated notice on every page', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('note')).toContainText('Synthetic demo data')
-  await expect(page.getByRole('note')).toContainText('simulated')
+  const note = page.getByRole('note')
+  await expect(note).toContainText('Synthetic data')
+  await expect(note).toContainText('simulated')
 })
 
 test('dashboard shows database-backed figures and charts', async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/')
-  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(/\d{4}$/) // titled by its period, e.g. "November 2026"
   await expect(page.getByText('Total balance')).toBeVisible()
   await expect(page.getByRole('img', { name: /Bar chart/ })).toBeVisible()
-  await expect(page.getByRole('list', { name: /Expenses by category/ })).toBeVisible()
-  // Amount column must never be clipped, even on a phone.
-  const amountCell = page.getByRole('row').nth(1).getByRole('cell').last()
-  const box = await amountCell.boundingBox()
-  expect(box && box.x + box.width <= (page.viewportSize()?.width ?? 0) + 1, 'amount column visible').toBeTruthy()
+  await expect(page.getByRole('list', { name: 'Expenses by category' })).toBeVisible()
   await expect(page.getByRole('row').nth(1)).toBeVisible()
+  // The amount column must never be clipped, even on a phone.
+  const box = await page.getByRole('row').nth(1).getByRole('cell').last().boundingBox()
+  expect(box && box.x + box.width <= (page.viewportSize()?.width ?? 0) + 1, 'amount column visible').toBeTruthy()
+  await page.waitForTimeout(400)
   await page.screenshot({ path: `screens/dashboard-${info.project.name}.png`, fullPage: true })
+})
+
+test('chart has an accessible table view', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Table' }).click()
+  await expect(page.getByRole('table', { name: /Money in and money out by month/ })).toBeVisible()
 })
 
 test('no horizontal overflow on any route (responsive gate)', async ({ page }) => {
@@ -43,83 +53,134 @@ test('no horizontal overflow on any route (responsive gate)', async ({ page }) =
 test('mobile navigation works', async ({ page }, info) => {
   test.skip(info.project.name !== 'mobile', 'mobile only')
   await page.goto('/')
-  await openNav(page, true)
+  await page.getByRole('button', { name: 'Open menu' }).click()
   await page.getByRole('link', { name: 'Vendors' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Vendors' })).toBeVisible()
 })
 
-test('transactions: search, filter and paginate', async ({ page }) => {
+test('command palette opens with the keyboard and navigates', async ({ page }, info) => {
+  test.skip(info.project.name === 'mobile', 'keyboard shortcut')
+  await page.goto('/')
+  await page.getByRole('heading', { level: 1 }).waitFor()
+  await page.keyboard.press('Control+k')
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByText('Invoices', { exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Invoices' })).toBeVisible()
+})
+
+test('theme: choice applies and survives a reload', async ({ page }) => {
+  await page.goto('/settings')
+  await page.getByRole('radio', { name: 'Dark' }).click()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  await page.getByRole('radio', { name: 'Light' }).click()
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+})
+
+test('transactions: search, filter, paginate and open details', async ({ page }) => {
   await page.goto('/transactions')
   await expect(page.getByText(/\d+ results/)).toBeVisible()
-  await page.getByLabel('Search').fill('AWS')
+  await page.getByLabel('Search', { exact: true }).fill('AWS')
   await expect(page.getByRole('cell', { name: /AWS/ }).first()).toBeVisible()
-  await page.getByLabel('Search').fill('zzz-no-match')
-  await expect(page.getByText('No transactions match your filters')).toBeVisible()
-  await page.getByLabel('Search').fill('')
-  await page.getByLabel('Type').selectOption('inflow')
+  await page.getByLabel('Search', { exact: true }).fill('zzz-no-match')
+  await expect(page.getByText('No transactions match')).toBeVisible()
+  await page.getByLabel('Search', { exact: true }).fill('')
+  await choose(page, 'Type', 'Money in')
   await expect(page.getByRole('cell', { name: 'Customer payment' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled()
+  // detail sheet
+  await page.getByRole('button', { name: 'Customer payment' }).first().click()
+  const sheet = page.getByRole('dialog')
+  await expect(sheet).toContainText('Money in')
+  await expect(sheet).toContainText('Transaction ID')
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
 })
 
 test('vendors: list and detail', async ({ page }) => {
   await page.goto('/vendors')
   await page.getByRole('link', { name: /AWS/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'AWS' })).toBeVisible()
-  await expect(page.getByText('Transaction history')).toBeVisible()
+  await expect(page.getByText('Total spend')).toBeVisible()
+  await expect(page.getByRole('table')).toBeVisible()
 })
 
-test('invoices: validation then creation', async ({ page }) => {
+test('invoices: validation, creation and detail', async ({ page }) => {
   await page.goto('/invoices')
-  await page.getByRole('button', { name: 'Create' }).click()
-  await expect(page.getByText('Choose a vendor')).toBeVisible()
-  await expect(page.getByText('Enter an amount greater than zero')).toBeVisible()
-  await page.getByLabel('Vendor').selectOption({ label: 'ABC Vendors' })
-  await page.getByLabel('Amount ($)').fill('123.45')
+  await page.getByRole('button', { name: 'New invoice' }).click()
+  await page.getByRole('button', { name: 'Create invoice' }).click()
+  const alerts = page.getByRole('alert')
+  await expect(alerts.filter({ hasText: 'Choose a vendor' })).toBeVisible()
+  await expect(alerts.filter({ hasText: 'Enter an amount greater than zero' })).toBeVisible()
+  await expect(alerts.filter({ hasText: 'Choose a due date' })).toBeVisible()
+  await choose(page, 'Vendor', 'ABC Vendors')
+  await page.getByLabel('Amount (USD)').fill('123.45')
   await page.getByLabel('Due date').fill('2027-01-15')
-  await page.getByRole('button', { name: 'Create' }).click()
-  await expect(page.getByRole('status').filter({ hasText: /Created INV-/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Create invoice' }).click()
+  await expect(page.getByText(/Created INV-/)).toBeVisible()
   await expect(page.getByRole('cell', { name: '$123.45' }).first()).toBeVisible()
+  // detail
+  await page.getByRole('tab', { name: /Draft/ }).click()
+  await page.getByRole('button', { name: /^INV-/ }).first().click()
+  await expect(page.getByRole('dialog')).toContainText('Invoice ID')
 })
 
-test('payments: draft does not execute; confirm shows a SIMULATED receipt; cancel works', async ({ page }) => {
+test('payments: a draft never executes; review then confirm gives a SIMULATED receipt; cancel works', async ({ page }) => {
   await page.goto('/payments')
-  await page.getByLabel('Payee').selectOption({ label: 'ABC Vendors' })
-  await page.getByLabel('Source account').selectOption({ label: 'Operating Account' })
-  await page.getByLabel('Amount ($)').fill('77.77')
+  await choose(page, 'Payee', 'ABC Vendors')
+  await choose(page, 'Pay from', 'Operating Account')
+  await page.getByLabel('Amount (USD)').fill('77.77')
   await page.getByLabel('Memo').fill('e2e confirm')
   await page.getByRole('button', { name: 'Create draft' }).click()
   const draft = page.getByRole('listitem').filter({ hasText: '$77.77' }).first()
-  await expect(draft).toContainText('pending confirmation')
+  await expect(draft).toContainText('Awaiting confirmation')
   // A draft alone never produces a receipt.
-  await expect(page.getByRole('status').filter({ hasText: 'NO MONEY MOVED' })).toHaveCount(0)
-  await draft.getByRole('button', { name: 'Confirm payment' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'NO MONEY MOVED' })).toBeVisible()
-  await expect(page.getByRole('listitem').filter({ hasText: '$77.77' }).first()).toContainText('executed')
+  await expect(page.getByRole('status', { name: 'Payment receipt' })).toHaveCount(0)
+
+  // Review dialog reads the draft back; Back changes nothing.
+  await draft.getByRole('button', { name: 'Review and confirm' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toContainText('$77.77')
+  await expect(dialog).toContainText('No money moves')
+  await dialog.getByRole('button', { name: 'Back' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(draft).toContainText('Awaiting confirmation')
+
+  // Explicit confirmation executes it.
+  await draft.getByRole('button', { name: 'Review and confirm' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm simulated payment' }).click()
+  await expect(page.getByRole('status', { name: 'Payment receipt' })).toContainText('NO MONEY MOVED')
+  await expect(page.getByRole('listitem').filter({ hasText: '$77.77' }).first()).toContainText('Executed')
 
   // cancel path
-  await page.getByLabel('Payee').selectOption({ label: 'ABC Vendors' })
-  await page.getByLabel('Source account').selectOption({ label: 'Operating Account' })
-  await page.getByLabel('Amount ($)').fill('88.88')
+  await choose(page, 'Payee', 'ABC Vendors')
+  await choose(page, 'Pay from', 'Operating Account')
+  await page.getByLabel('Amount (USD)').fill('88.88')
   await page.getByRole('button', { name: 'Create draft' }).click()
   const d2 = page.getByRole('listitem').filter({ hasText: '$88.88' }).first()
   await d2.getByRole('button', { name: 'Cancel' }).click()
-  await expect(page.getByRole('listitem').filter({ hasText: '$88.88' }).first()).toContainText('cancelled')
+  await expect(page.getByRole('listitem').filter({ hasText: '$88.88' }).first()).toContainText('Cancelled')
 })
 
 test('payments: insufficient funds is rejected by the server', async ({ page }) => {
   await page.goto('/payments')
-  await page.getByLabel('Payee').selectOption({ label: 'ABC Vendors' })
-  await page.getByLabel('Source account').selectOption({ label: 'Operating Account' })
-  await page.getByLabel('Amount ($)').fill('999999')
+  await choose(page, 'Payee', 'ABC Vendors')
+  await choose(page, 'Pay from', 'Operating Account')
+  await page.getByLabel('Amount (USD)').fill('999999')
   await page.getByRole('button', { name: 'Create draft' }).click()
   const draft = page.getByRole('listitem').filter({ hasText: '$999,999.00' }).first()
-  await draft.getByRole('button', { name: 'Confirm payment' }).click()
+  await draft.getByRole('button', { name: 'Review and confirm' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm simulated payment' }).click()
   await expect(page.getByRole('alert').filter({ hasText: 'Insufficient simulated balance' })).toBeVisible()
 })
 
-test('activity log records the operations', async ({ page }) => {
+test('activity log records the operations and filters', async ({ page }) => {
   await page.goto('/activity')
   await expect(page.getByRole('cell', { name: 'payment.executed' }).first()).toBeVisible()
+  await page.getByRole('tab', { name: 'Rejected or failed' }).click()
+  await expect(page.getByRole('cell', { name: 'payment.executed' })).toHaveCount(0)
 })
 
 test('command center fails gracefully when the AI is not configured', async ({ page, request }) => {

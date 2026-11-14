@@ -5,6 +5,8 @@ import type {
   AuditEvent,
   CategoryPoint,
   CommandResponse,
+  ConversationMessage,
+  ConversationSummary,
   Dashboard,
   Invoice,
   Me,
@@ -52,6 +54,9 @@ export function __resetMockState() {
 
 export const mockApi = {
   getHealth: (): Promise<{ status: string }> => delay({ status: 'mock' }),
+  // The mock keeps no history; the live API persists conversations server-side.
+  getConversations: (): Promise<ConversationSummary[]> => delay([]),
+  getConversationMessages: (_id: string): Promise<ConversationMessage[]> => delay([]),
   getMe: (): Promise<Me> => delay(mockMe),
   getAccounts: (): Promise<Account[]> => delay(mockAccounts),
 

@@ -14,17 +14,35 @@ interface CommandState {
   conversationId: string | undefined
   messages: ChatMessage[]
   status: 'idle' | 'loading'
+  /** Bumped whenever the server-side conversation list changes, so the history panel refetches. */
+  revision: number
 }
 
-const initialState: CommandState = { conversationId: undefined, messages: [], status: 'idle' }
+const initialState: CommandState = { conversationId: undefined, messages: [], status: 'idle', revision: 0 }
 
-export const sendCommand = createAsyncThunk<CommandResponse, string, { state: { command: CommandState }; rejectValue: string }>(
+type ThunkConfig = { state: { command: CommandState }; rejectValue: string }
+
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong')
+
+export const sendCommand = createAsyncThunk<CommandResponse, string, ThunkConfig>(
   'command/send',
   async (message, { getState, rejectWithValue }) => {
     try {
       return await api.sendCommand(message, getState().command.conversationId)
     } catch (e) {
-      return rejectWithValue(e instanceof Error ? e.message : 'Something went wrong')
+      return rejectWithValue(messageOf(e))
+    }
+  },
+)
+
+export const openConversation = createAsyncThunk<{ id: string; messages: ChatMessage[] }, string, ThunkConfig>(
+  'command/open',
+  async (id, { rejectWithValue }) => {
+    try {
+      const rows = await api.getConversationMessages(id)
+      return { id, messages: rows.map((m) => ({ id: m.id, role: m.role, text: m.content, blocks: m.ui_blocks })) }
+    } catch (e) {
+      return rejectWithValue(messageOf(e))
     }
   },
 )
@@ -33,7 +51,7 @@ const commandSlice = createSlice({
   name: 'command',
   initialState,
   reducers: {
-    clearConversation: () => initialState,
+    clearConversation: (s) => ({ ...initialState, revision: s.revision }),
   },
   extraReducers: (b) => {
     b.addCase(sendCommand.pending, (s, a) => {
@@ -43,6 +61,7 @@ const commandSlice = createSlice({
     b.addCase(sendCommand.fulfilled, (s, a) => {
       s.status = 'idle'
       s.conversationId = a.payload.conversation_id
+      s.revision += 1
       s.messages.push({
         id: a.payload.message_id,
         role: 'assistant',
@@ -54,6 +73,18 @@ const commandSlice = createSlice({
     b.addCase(sendCommand.rejected, (s, a) => {
       s.status = 'idle'
       s.messages.push({ id: a.meta.requestId + '-err', role: 'error', text: a.payload ?? 'Request failed' })
+    })
+    b.addCase(openConversation.pending, (s) => {
+      s.status = 'loading'
+    })
+    b.addCase(openConversation.fulfilled, (s, a) => {
+      s.status = 'idle'
+      s.conversationId = a.payload.id
+      s.messages = a.payload.messages
+    })
+    b.addCase(openConversation.rejected, (s, a) => {
+      s.status = 'idle'
+      s.messages.push({ id: a.meta.requestId + '-err', role: 'error', text: a.payload ?? 'Could not open that conversation' })
     })
   },
 })

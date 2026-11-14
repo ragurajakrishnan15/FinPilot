@@ -55,7 +55,7 @@ SELECT '00000000-0000-0000-0000-00000000aaaa',
        (m.month_start + ((v.n * 2 + 2) % 27) * INTERVAL '1 day')::date,
        v.name || ' — ' || to_char(m.month_start, 'YYYY-MM') || ' services',
        v.category, 'outflow',
-       ((CASE v.category WHEN 'Payroll' THEN 4200000 WHEN 'Cloud Infrastructure' THEN 110000 ELSE 40000 END)
+       ((CASE v.category WHEN 'Payroll' THEN 4200000 WHEN 'Cloud Infrastructure' THEN 650000 ELSE 180000 END)
           * (100 + (abs(hashtext(v.name || m.month_start::text)) % 40)) / 100 / 100) * 100
 FROM (VALUES
   (1,'AWS','Cloud Infrastructure'),(2,'ABC Vendors','Office Supplies'),(3,'Northwind Logistics','Shipping'),

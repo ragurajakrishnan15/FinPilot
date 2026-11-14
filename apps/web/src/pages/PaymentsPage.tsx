@@ -1,24 +1,57 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
+import { Amount } from '@/components/Amount'
+import { PageHeader } from '@/components/PageHeader'
+import { ConfirmDialog } from '@/components/payments/ConfirmDialog'
+import { ReceiptTicket } from '@/components/payments/ReceiptTicket'
 import { AsyncBoundary, EmptyState } from '@/components/States'
-import { Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select } from '@/components/ui/primitives'
+import { StatusBadge } from '@/components/StatusBadge'
+import { Button } from '@/components/ui/button'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAsync } from '@/hooks/useAsync'
-import { formatDate, formatMoney, parseMoneyToCents } from '@/lib/money'
+import { formatDate, parseMoneyToCents } from '@/lib/money'
 import { api } from '@/services/api'
 import type { Payment, PaymentDraft } from '@/types/api'
 
-const statusTone = { pending_confirmation: 'warn', executed: 'ok', cancelled: 'neutral', rejected: 'danger' } as const
+function FieldError({ message }: { message?: string }) {
+  return message ? (
+    <p role="alert" className="text-xs text-destructive">
+      {message}
+    </p>
+  ) : null
+}
 
-function Receipt({ p }: { p: Payment }) {
+function DraftRow({ draft, onReview, onCancel, busy }: { draft: PaymentDraft; onReview: () => void; onCancel: () => void; busy: boolean }) {
+  const pending = draft.status === 'pending_confirmation'
   return (
-    <div role="status" className="rounded-md border-2 border-warn p-4 text-sm">
-      <p className="font-semibold text-warn">{p.receipt_label}</p>
-      <p className="mt-1">
-        {formatMoney(p.amount_minor, p.currency)} to {p.vendor_name}
-      </p>
-      <p className="text-muted">
-        Receipt {p.id} · {new Date(p.executed_at).toLocaleString()}
-      </p>
-    </div>
+    <li className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-4">
+      <div className="min-w-0">
+        <p className="flex items-baseline gap-3">
+          <Amount cents={draft.amount_minor} currency={draft.currency} className="text-lg font-medium tracking-[-0.01em]" />
+          <span className="truncate text-sm">to {draft.vendor_name}</span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          From {draft.source_account_name} · {formatDate(draft.execution_date)} · {draft.memo || 'No memo'}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <StatusBadge status={draft.status} />
+        {pending ? (
+          <>
+            <Button size="sm" disabled={busy} onClick={onReview}>
+              Review and confirm
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
+              Cancel
+            </Button>
+          </>
+        ) : null}
+      </div>
+    </li>
   )
 }
 
@@ -27,20 +60,25 @@ export default function PaymentsPage() {
   const payments = useAsync(() => api.getPayments())
   const vendors = useAsync(() => api.getVendors())
   const accounts = useAsync(() => api.getAccounts())
+
   const [vendorId, setVendorId] = useState('')
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
   const [memo, setMemo] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [creating, setCreating] = useState(false)
+  const [reviewing, setReviewing] = useState<PaymentDraft>()
+  const [confirming, setConfirming] = useState(false)
+  const [busyId, setBusyId] = useState<string>()
   const [receipt, setReceipt] = useState<Payment>()
   const [actionError, setActionError] = useState<string>()
-  const [busy, setBusy] = useState<string>()
-  // One idempotency key per draft so a double click cannot execute twice.
-  const [keys] = useState(() => new Map<string, string>())
+  // One idempotency key per draft: a double click or a retry can never execute the payment twice.
+  const keys = useRef(new Map<string, string>())
 
-  function refresh() {
+  const refresh = () => {
     drafts.reload()
     payments.reload()
+    accounts.reload()
   }
 
   async function create(e: FormEvent) {
@@ -52,164 +90,211 @@ export default function PaymentsPage() {
     if (cents === null || cents <= 0) errs.amount = 'Enter an amount greater than zero'
     setErrors(errs)
     if (Object.keys(errs).length || cents === null) return
+    setCreating(true)
     try {
       await api.createPaymentDraft({ vendor_id: vendorId, amount_minor: cents, source_account_id: accountId, memo })
       setAmount('')
       setMemo('')
+      toast.success('Draft created. Nothing is paid until you confirm it.')
       refresh()
     } catch (err) {
-      setErrors({ form: err instanceof Error ? err.message : 'Could not create draft' })
+      setErrors({ form: err instanceof Error ? err.message : 'Could not create the draft' })
+    } finally {
+      setCreating(false)
     }
   }
 
   async function confirm(d: PaymentDraft) {
-    setBusy(d.id)
+    setConfirming(true)
     setActionError(undefined)
-    let key = keys.get(d.id)
+    let key = keys.current.get(d.id)
     if (!key) {
       key = crypto.randomUUID()
-      keys.set(d.id, key)
+      keys.current.set(d.id, key)
     }
     try {
       setReceipt(await api.confirmPaymentDraft(d.id, key))
+      toast.success('Payment executed (simulated)')
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Confirmation failed')
+      const message = err instanceof Error ? err.message : 'Confirmation failed'
+      setActionError(message)
+      toast.error(message)
     } finally {
-      setBusy(undefined)
+      setConfirming(false)
+      setReviewing(undefined)
       refresh()
     }
   }
 
   async function cancel(d: PaymentDraft) {
-    setBusy(d.id)
+    setBusyId(d.id)
     setActionError(undefined)
     try {
       await api.cancelPaymentDraft(d.id)
+      toast('Draft cancelled')
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Cancel failed')
+      const message = err instanceof Error ? err.message : 'Cancel failed'
+      setActionError(message)
+      toast.error(message)
     } finally {
-      setBusy(undefined)
+      setBusyId(undefined)
       refresh()
     }
   }
 
   return (
     <>
-      <PageHeader title="Payments" description="Create a draft, review it, then explicitly confirm. All payments are simulated." />
-      {receipt && (
-        <div className="mb-4">
-          <Receipt p={receipt} />
-        </div>
-      )}
-      {actionError && (
-        <p role="alert" className="mb-4 text-sm text-danger">
+      <PageHeader
+        title="Payments"
+        description="Prepare a draft, read it back, then confirm it yourself. Every payment here is simulated."
+      />
+
+      {actionError ? (
+        <p role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {actionError}
         </p>
-      )}
+      ) : null}
 
-      <Card className="mb-4">
-        <CardHeader title="New payment draft" />
-        <form onSubmit={(e) => void create(e)} className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5" noValidate>
-          <Field label="Payee" htmlFor="pay-vendor" error={errors.vendor}>
-            <Select id="pay-vendor" value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
-              <option value="">Select…</option>
-              {vendors.data?.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Source account" htmlFor="pay-account" error={errors.account}>
-            <Select id="pay-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">Select…</option>
-              {accounts.data
-                ?.filter((a) => a.kind !== 'credit')
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </Select>
-          </Field>
-          <Field label="Amount ($)" htmlFor="pay-amount" error={errors.amount}>
-            <Input id="pay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </Field>
-          <Field label="Memo" htmlFor="pay-memo">
-            <Input id="pay-memo" maxLength={140} value={memo} onChange={(e) => setMemo(e.target.value)} />
-          </Field>
-          <div className="flex items-end">
-            <Button type="submit">Create draft</Button>
-          </div>
-          {errors.form && (
-            <p role="alert" className="text-sm text-danger sm:col-span-full">
-              {errors.form}
-            </p>
-          )}
-        </form>
-      </Card>
+      <div className="grid items-start gap-4 lg:grid-cols-[380px_1fr]">
+        <Card className="gap-0 py-0">
+          <CardHeader className="border-b border-border py-4">
+            <CardTitle className="text-sm font-medium">Prepare a payment</CardTitle>
+            <CardDescription>Creates a draft. It does not move anything.</CardDescription>
+          </CardHeader>
+          <form onSubmit={(e) => void create(e)} noValidate className="flex flex-col gap-4 p-5">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="pay-vendor">Payee</Label>
+              <Select value={vendorId} onValueChange={setVendorId}>
+                <SelectTrigger id="pay-vendor" className="w-full" aria-invalid={Boolean(errors.vendor)}>
+                  <SelectValue placeholder="Choose a payee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendors.data?.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={errors.vendor} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="pay-account">Pay from</Label>
+              <Select value={accountId} onValueChange={setAccountId}>
+                <SelectTrigger id="pay-account" className="w-full" aria-invalid={Boolean(errors.account)}>
+                  <SelectValue placeholder="Choose an account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.data
+                    ?.filter((a) => a.kind !== 'credit')
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={errors.account} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="pay-amount">Amount (USD)</Label>
+              <Input
+                id="pay-amount"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                aria-invalid={Boolean(errors.amount)}
+              />
+              <FieldError message={errors.amount} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <Label htmlFor="pay-memo">Memo</Label>
+                <span className="num text-xs text-muted-foreground">{memo.length}/140</span>
+              </div>
+              <Input id="pay-memo" maxLength={140} value={memo} onChange={(e) => setMemo(e.target.value)} />
+            </div>
+            <FieldError message={errors.form} />
+            <Button type="submit" disabled={creating}>
+              Create draft
+            </Button>
+          </form>
+        </Card>
 
-      <Card className="mb-4">
-        <CardHeader title="Drafts" />
-        <AsyncBoundary
-          state={drafts}
-          isEmpty={(d) => d.length === 0}
-          empty={<EmptyState title="No payment drafts" hint="Create one above or ask the Command Center." />}
-        >
-          {(list) => (
-            <ul>
-              {list.map((d) => (
-                <li
-                  key={d.id}
-                  className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm first:border-t-0"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {formatMoney(d.amount_minor, d.currency)} → {d.vendor_name}
-                    </p>
-                    <p className="text-xs text-muted">
-                      From {d.source_account_name} · {formatDate(d.execution_date)} · {d.memo || 'No memo'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={statusTone[d.status]}>{d.status.replace('_', ' ')}</Badge>
-                    {d.status === 'pending_confirmation' && (
-                      <>
-                        <Button size="sm" disabled={busy === d.id} onClick={() => void confirm(d)}>
-                          Confirm payment
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={busy === d.id} onClick={() => void cancel(d)}>
-                          Cancel
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </AsyncBoundary>
-      </Card>
+        <div className="flex min-w-0 flex-col gap-4">
+          {receipt ? <ReceiptTicket payment={receipt} onDismiss={() => setReceipt(undefined)} /> : null}
 
-      <Card>
-        <CardHeader title="Executed payments (simulated)" />
-        <AsyncBoundary state={payments} isEmpty={(d) => d.length === 0} empty={<EmptyState title="No payments yet" />}>
-          {(list) => (
-            <ul>
-              {list.map((p) => (
-                <li key={p.id} className="flex flex-wrap justify-between gap-2 border-t border-border px-4 py-3 text-sm first:border-t-0">
-                  <span>
-                    {formatMoney(p.amount_minor, p.currency)} → {p.vendor_name}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {p.receipt_label} · {new Date(p.executed_at).toLocaleDateString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </AsyncBoundary>
-      </Card>
+          <Card className="gap-0 overflow-hidden py-0">
+            <CardHeader className="border-b border-border py-4">
+              <CardTitle className="text-sm font-medium">Drafts</CardTitle>
+            </CardHeader>
+            <AsyncBoundary
+              state={drafts}
+              isEmpty={(d) => d.length === 0}
+              empty={<EmptyState title="No drafts yet" hint="Prepare one on the left, or ask the Command Center to." />}
+            >
+              {(list) => (
+                <ul className="divide-y divide-border">
+                  {list.map((d) => (
+                    <DraftRow
+                      key={d.id}
+                      draft={d}
+                      busy={busyId === d.id || confirming}
+                      onReview={() => setReviewing(d)}
+                      onCancel={() => void cancel(d)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </AsyncBoundary>
+          </Card>
+
+          <Card className="gap-0 overflow-hidden py-0">
+            <CardHeader className="border-b border-border py-4">
+              <CardTitle className="text-sm font-medium">Executed payments</CardTitle>
+              <CardDescription>Simulated. No money moved.</CardDescription>
+            </CardHeader>
+            <AsyncBoundary state={payments} isEmpty={(d) => d.length === 0} empty={<EmptyState title="No payments yet" />}>
+              {(list) => (
+                <Table>
+                  <caption className="sr-only">Executed payments</caption>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-5">Payee</TableHead>
+                      <TableHead className="hidden sm:table-cell">Receipt</TableHead>
+                      <TableHead>When</TableHead>
+                      <TableHead className="pr-5 text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {list.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="pl-5">{p.vendor_name}</TableCell>
+                        <TableCell className="hidden font-mono text-xs text-muted-foreground sm:table-cell">{p.id.slice(0, 8)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {new Date(p.executed_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="pr-5 text-right">
+                          <Amount cents={p.amount_minor} currency={p.currency} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </AsyncBoundary>
+          </Card>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        draft={reviewing}
+        account={accounts.data?.find((a) => a.id === reviewing?.source_account_id)}
+        busy={confirming}
+        onConfirm={(d) => void confirm(d)}
+        onClose={() => setReviewing(undefined)}
+      />
     </>
   )
 }

@@ -1,10 +1,10 @@
-﻿# --- build stage (also used as the dev/test image: `docker build --target build`) ---
+# --- build stage (also used as the dev/test image: `docker build --target build`) ---
 FROM haskell:9.10-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY finpilot-api.cabal ./
-RUN cabal update && cabal build --only-dependencies -j2 exe:finpilot-api
+RUN cabal update && cabal build --only-dependencies -j2 all
 COPY app ./app
 COPY src ./src
 COPY test ./test

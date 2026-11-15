@@ -6,6 +6,15 @@ AI-powered financial command center — a portfolio project using **synthetic da
 
 Docs: [`PLAN.md`](PLAN.md) · [architecture](docs/architecture.md) · [API](docs/api-reference.md) · [AI tools](docs/ai-tool-catalog.md) · [security](docs/security-design.md) · [tests](docs/test-strategy.md) · [status](docs/status.md)
 
+## Live demo
+
+- **Web:** https://fin-pilot-nu.vercel.app (Vercel)
+- **API:** https://finpilot-api-c4bj.onrender.com/health (Render free tier, Haskell image from GHCR; PostgreSQL on Supabase)
+
+The demo runs on synthetic data with simulated payments and a shared demo user. The API sleeps when idle, so the first
+request after a quiet period can take up to a minute. Try the Command Center with "What is our total cash balance?".
+Deployed smoke tests: `DEPLOYED_URL=https://fin-pilot-nu.vercel.app npx playwright test` in `e2e/` (read-only).
+
 ## Run it locally (Windows / PowerShell)
 
 Prerequisites: Node 22+, Docker Desktop. (GHC is **not** required: the API is built in Docker. A native GHC 9.10 + Cabal also works.)

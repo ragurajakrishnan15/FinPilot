@@ -23,6 +23,7 @@ import Database.PostgreSQL.Simple (Connection)
 import FinPilot.Api
 import FinPilot.Auth.Jwt
 import FinPilot.Config
+import qualified FinPilot.Database.Demo as Demo
 import qualified FinPilot.Database.Payments as P
 import qualified FinPilot.Database.Queries as Q
 import FinPilot.Domain.Validation
@@ -79,6 +80,7 @@ protected env ctx =
     :<|> commandH
     :<|> conversationsH
     :<|> conversationMessagesH
+    :<|> demoResetH
   where
     ws = ctx.workspaceId
     meH =
@@ -150,6 +152,14 @@ protected env ctx =
             _ <- Q.insertMessage c ctx sid "user" text (toJSON ([] :: [Value]))
             Q.insertMessage c ctx sid "assistant" r.answer (toJSON r.uiBlocks)
           pure CommandResp {message_id = mid, conversation_id = sid, answer = r.answer, ui_blocks = r.uiBlocks, ui_blocks_version = 1, tool_activity = r.activity}
+    -- Demo-only: restores this workspace to its seeded state. Hidden (404) unless DEMO_MODE=true.
+    demoResetH :: Handler ResetResp
+    demoResetH = do
+      unless env.config.demoMode (notFound "Route")
+      unless (ctx.role `elem` [Owner, Admin]) (forbidden "Only an owner or admin can reset the demo data")
+      runDb env (\c -> Demo.resetDemoWorkspace c ctx) >>= \case
+        Right r -> pure r
+        Left Demo.ResetTooSoon -> apiError err429 "reset_too_soon" "The demo was reset a moment ago. Please wait a few seconds." M.empty
     createInvoiceH :: NewInvoice -> Handler InvoiceRow
     createInvoiceH inv = do
       unless (canWrite ctx.role) (forbidden "Your role cannot create invoices")

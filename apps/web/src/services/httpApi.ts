@@ -11,6 +11,7 @@ import type {
   Page,
   Payment,
   PaymentDraft,
+  ResetResult,
   Transaction,
   TransactionQuery,
   Vendor,
@@ -58,6 +59,8 @@ export const httpApi = {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+  // Demo-only (404 unless the API runs with DEMO_MODE=true); owner/admin only.
+  resetDemo: () => request<ResetResult>('/api/demo/reset', { method: 'POST' }),
   cancelPaymentDraft: (id: string) => request<PaymentDraft>(`/api/payment-drafts/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   getAuditEvents: () => request<AuditEvent[]>('/api/audit-events'),
   getConversations: () => request<ConversationSummary[]>('/api/conversations'),

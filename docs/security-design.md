@@ -26,6 +26,7 @@
 - **Supabase JWKS (RS256/ES256)** verification is not implemented; HS256 with the project JWT secret is supported. Add JWKS fetching before relying on asymmetric Supabase keys.
 - Users must be provisioned in `users`/`memberships` (no auto-provisioning on first login yet).
 - `POST /api/demo-session` issues a token for the seeded demo user when `DEMO_MODE=true`; **keep `DEMO_MODE=false` anywhere real users exist.**
+- `POST /api/demo/reset` is only routable when `DEMO_MODE=true` (otherwise `404`), requires a verified session with an owner/admin role, acts only on the workspace from that session (never a client-supplied id), runs in a single transaction, is rate limited per workspace, and appends a `demo.reset` audit event. It never deletes audit events, so a reset cannot erase the record of what happened. It is tested for: hidden outside demo mode, unauthenticated, viewer forbidden, cross-workspace isolation, balance restoration, cooldown.
 - Rate limiting for `/api/command` is per-user in the database; there is no global/IP limiter in front of the API (use the host/edge for that).
 - The 64 KB body guard checks `Content-Length`; chunked uploads rely on host limits.
 - No real money or bank data exists anywhere; all payments are database-only simulations.

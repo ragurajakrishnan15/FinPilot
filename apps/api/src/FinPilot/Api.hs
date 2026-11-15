@@ -46,6 +46,7 @@ type ProtectedAPI =
     :<|> "command" :> ReqBody '[JSON] CommandReq :> Post '[JSON] CommandResp
     :<|> "conversations" :> Get '[JSON] [ConversationRow]
     :<|> "conversations" :> Capture "id" UUID :> "messages" :> Get '[JSON] [MessageRow]
+    :<|> "demo" :> "reset" :> Post '[JSON] ResetResp
 
 type API =
   "health" :> Get '[JSON] Health

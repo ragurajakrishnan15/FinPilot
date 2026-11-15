@@ -56,6 +56,7 @@ library
     FinPilot.Api
     FinPilot.Auth.Jwt
     FinPilot.Config
+    FinPilot.Database.Demo
     FinPilot.Database.Payments
     FinPilot.Database.Queries
     FinPilot.Domain.Finance
@@ -78,6 +79,7 @@ test-suite finpilot-api-test
   main-is:          Spec.hs
   other-modules:
     FinPilot.AISpec
+    FinPilot.DemoResetSpec
     FinPilot.FinanceSpec
     FinPilot.IntegrationSpec
     FinPilot.JwtSpec

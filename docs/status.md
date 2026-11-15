@@ -7,7 +7,7 @@
 | 2 — Database + Haskell API | Done | migrations + seed applied to PostgreSQL 16; Hspec integration tests incl. cross-workspace isolation |
 | 3 — Groq + tool calling | Code + tests done; verified against live Groq (local and the deployed API) | scripted-LLM tests (allowlist, validation, budget, injection, rate limit). Needs `GROQ_API_KEY` + `GROQ_MODEL` (set as server env vars) |
 | 4 — Simulated payments | Done | PaymentSpec incl. concurrent confirmations; Playwright draft→confirm/cancel |
-| 5 — Quality & security | Mostly done | 78 Hspec examples, 20 Vitest, 23 Playwright (+1 mobile-only skipped on desktop). Playwright CI job added (actionlint-clean, not yet run on GitHub). Live-AI eval harness added (`evals/`, 10/10 read-only cases pass on the deployed API) |
+| 5 — Quality & security | Mostly done | 84 Hspec examples (incl. demo reset), 36 Vitest, 37 Playwright passing locally. The Playwright job runs in GitHub Actions CI. Live-AI eval harness added (`evals/`, 10/10 read-only cases pass on the deployed API) |
 | 6 — Deployment | API on Render (free) + Supabase Postgres, web on Vercel; Playwright deployed smoke tests (read-only, desktop + mobile, 4 each) pass against the public URL, incl. a live Command Center answer | `render.yaml`, `apps/web/vercel.json`, production Dockerfile. Needs your Vercel/Render/Supabase accounts and secrets |
 | 7 — Portfolio | Docs written; screenshots in `e2e/screens`; demo video + case study not done | |
 

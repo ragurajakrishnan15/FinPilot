@@ -88,7 +88,7 @@ const token = session.json.token
 const accounts = (await http('/api/accounts', { token })).json ?? []
 const balanceMinor = accounts.reduce((s, a) => s + a.balance_minor, 0)
 
-const all = JSON.parse(await readFile(join(here, 'cases.json'), 'utf8'))
+const all = JSON.parse(await readFile(process.env.EVAL_CASES ?? join(here, 'cases.json'), 'utf8'))
 const cases = all.filter((c) => (only.length ? only.includes(c.id) : allowWrites || !c.writes))
 const skipped = all.filter((c) => !cases.includes(c)).map((c) => c.id)
 

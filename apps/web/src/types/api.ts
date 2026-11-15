@@ -9,6 +9,14 @@ export interface Me {
   workspace: { id: string; name: string }
 }
 
+export interface ResetResult {
+  payments_removed: number
+  drafts_removed: number
+  invoices_removed: number
+  ledger_entries_removed: number
+  conversations_removed: number
+}
+
 export interface Account {
   id: string
   name: string

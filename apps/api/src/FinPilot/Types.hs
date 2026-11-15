@@ -59,6 +59,17 @@ instance ToJSON Health where toJSON = genericToJSON jsonOpts
 data SessionToken = SessionToken {token :: Text, expires_in :: Int} deriving stock (Show, Eq, Generic)
 instance ToJSON SessionToken where toJSON = genericToJSON jsonOpts
 
+-- | What a demo reset removed (counts only).
+data ResetResp = ResetResp
+  { payments_removed :: Int
+  , drafts_removed :: Int
+  , invoices_removed :: Int
+  , ledger_entries_removed :: Int
+  , conversations_removed :: Int
+  }
+  deriving stock (Show, Eq, Generic)
+instance ToJSON ResetResp where toJSON = genericToJSON jsonOpts
+
 data WorkspaceRef = WorkspaceRef {id_ :: UUID, name :: Text} deriving stock (Show, Eq, Generic)
 instance ToJSON WorkspaceRef where toJSON = genericToJSON jsonOpts
 

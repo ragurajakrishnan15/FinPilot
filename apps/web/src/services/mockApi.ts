@@ -17,6 +17,7 @@ import type {
   Transaction,
   TransactionQuery,
   Vendor,
+  ResetResult,
 } from '@/types/api'
 import {
   mockAccounts,
@@ -252,6 +253,18 @@ export const mockApi = {
       status: 'succeeded',
     })
     return delay(updated)
+  },
+
+  async resetDemo(): Promise<ResetResult> {
+    const result: ResetResult = {
+      payments_removed: Math.max(0, payments.length - mockPayments.length),
+      drafts_removed: Math.max(0, drafts.length - mockDrafts.length),
+      invoices_removed: Math.max(0, invoices.length - mockInvoices.length),
+      ledger_entries_removed: 0,
+      conversations_removed: 0,
+    }
+    __resetMockState()
+    return delay(result)
   },
 
   getAuditEvents: (): Promise<AuditEvent[]> => delay([...audit]),

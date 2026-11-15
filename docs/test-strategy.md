@@ -19,4 +19,4 @@ without that variable the integration specs are reported as *pending*, not passe
 
 ## Live model evals
 
-`evals/` holds a zero-dependency harness that runs 12 prompts against the real model through the API and checks tool choice, grounding (balance compared with the database), UI blocks, and safety behavior. See [evals/README.md](../evals/README.md). Last run against the deployed API: 10/10 read-only cases passed (write cases that create drafts were not run there).
+`evals/` holds a zero-dependency harness that runs 12 prompts against the real model through the API and checks tool choice, grounding (balance compared with the database), UI blocks, and safety behavior. See [evals/README.md](../evals/README.md). Last runs: 12/12 against a local API (including the two write cases that create payment drafts) and 10/10 read-only cases against the deployed API. The harness itself was checked against five deliberately wrong cases (all reported FAIL, exit code 1).

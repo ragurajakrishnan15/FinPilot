@@ -65,6 +65,7 @@ A workspace ID in a request body, query string or model tool argument is **never
 | POST | `/api/command` | Body `{message, conversation_id?}` (message ≤ `MAX_COMMAND_INPUT_CHARS`, unknown fields rejected). Response `{message_id, conversation_id, answer, ui_blocks, ui_blocks_version: 1, tool_activity:[{tool_name,status}]}`. `ui_blocks` types: `metric{label,value_minor,currency}`, `table{columns,rows}`, `payment_draft{draft}`. |
 | GET | `/api/conversations` | The caller's conversations (own only) |
 | GET | `/api/conversations/:id/messages` | Own conversation only, else `404` |
+| POST | `/api/demo/reset` | **Demo mode only** (`404` unless `DEMO_MODE=true`). Owner/admin only (`403` otherwise). Restores the caller's workspace to its seeded state: removes payments, drafts, API-created invoices and conversations, refunds executed payments to their source accounts, and removes the ledger rows they created. The audit log is kept and a `demo.reset` event is appended. Returns counts of what was removed. At most once per 30 s per workspace (`429 reset_too_soon`) |
 
 Errors: `503 service_unavailable` (no `GROQ_API_KEY`/`GROQ_MODEL`), `429 rate_limited` (10 messages/min/user, or provider rate limit),
 `504 llm_timeout`, `502 llm_unavailable`. Provider details are never returned. See `docs/ai-tool-catalog.md`.

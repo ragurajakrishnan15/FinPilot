@@ -16,3 +16,7 @@ without that variable the integration specs are reported as *pending*, not passe
 - Live Groq responses (needs `GROQ_API_KEY`/`GROQ_MODEL`; model choice quality — tool selection evals — can only be measured against a real model).
 - Load/performance tests; multi-region/failover.
 - The CI `e2e` job has been linted (actionlint) but has **not yet run on GitHub**; expect to fix environment differences on its first run. It runs without a Groq key, so the live-AI path is never exercised in CI.
+
+## Live model evals
+
+`evals/` holds a zero-dependency harness that runs 12 prompts against the real model through the API and checks tool choice, grounding (balance compared with the database), UI blocks, and safety behavior. See [evals/README.md](../evals/README.md). Last run against the deployed API: 10/10 read-only cases passed (write cases that create drafts were not run there).
